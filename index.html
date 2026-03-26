@@ -2,15 +2,15 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>VideoTrainSimulator</title>
+    <title>JREast Simulator Pro - V6.6 Stability Fix</title>
     <style>
         :root { --accent: #00ff00; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: white; font-family: "Segoe UI", sans-serif; overflow: hidden; }
-        .screen { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; }
-        .active { display: flex; }
+        .screen { display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; position: absolute; top: 0; left: 0; }
+        .active { display: flex !important; }
 
-        /* UI Panel */
-        .config-card { background: #1a1a1a; padding: 30px; border-radius: 12px; border: 1px solid #333; width: 85%; max-width: 540px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
+        /* 配置卡片 */
+        .config-card { background: #1a1a1a; padding: 30px; border-radius: 12px; border: 1px solid #333; width: 85%; max-width: 580px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
         .btn { padding: 12px 24px; margin: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.15s; }
         .btn-primary { background: #0078d4; color: white; }
         .btn-success { background: #28a745; color: white; }
@@ -18,73 +18,74 @@
         .btn:hover { transform: scale(1.03); opacity: 0.9; }
 
         .setting-row { margin: 15px 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #bbb; }
-        .setting-row input { width: 70px; background: #000; color: #0f0; border: 1px solid #444; padding: 5px; text-align: center; border-radius: 4px; }
+        input, select { background: #000; color: #0f0; border: 1px solid #444; padding: 6px; text-align: center; border-radius: 4px; }
 
-        /* Editor */
-        #editor-layout { width: 95%; max-width: 1000px; }
-        #preview-video { width: 100%; background: #000; border-radius: 8px; max-height: 55vh; }
-        #scrubber { width: 100%; margin: 20px 0; cursor: pointer; height: 12px; accent-color: #0078d4; }
-        .marker-log { background: #0a0a0a; height: 100px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 13px; border: 1px solid #222; color: #0f0; margin-top: 10px; text-align: left; }
-
-        /* Game HUD */
+        /* HUD */
         #game-container { position: relative; width: 100vw; height: 100vh; }
         video#main-video { width: 100%; height: 100%; object-fit: contain; }
         #hud { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.9); padding: 25px; border-left: 6px solid var(--accent); min-width: 260px; text-align: right; pointer-events: none; }
         .notch-val { font-size: 72px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--accent); line-height: 0.8; }
+        #speed-txt { font-size: 26px; font-weight: bold; margin-top: 5px; }
+        .rate-info { font-size: 13px; color: #666; margin-top: 6px; font-family: monospace; }
         
         #bench-display { position: absolute; top: 40px; left: 40px; background: rgba(0,0,0,0.85); padding: 20px; border-radius: 4px; border: 1px solid #333; pointer-events: none; }
-        .timer-box { margin-bottom: 15px; }
         .timer-val { font-size: 32px; font-weight: bold; font-family: monospace; }
-        .timer-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
         
-        #load-msg { margin-top: 15px; color: #ffc107; font-weight: bold; }
+        /* Editor */
+        #editor-layout { width: 95%; max-width: 1000px; }
+        #preview-video { width: 100%; background: #111; border-radius: 8px; max-height: 55vh; }
+        #scrubber { width: 100%; margin: 15px 0; height: 10px; accent-color: #0078d4; }
+        .marker-log { background: #0a0a0a; height: 80px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border: 1px solid #222; color: #0f0; text-align: left; }
     </style>
 </head>
 <body>
 
     <div id="screen-start" class="screen active">
         <div class="config-card">
-            <h2 style="letter-spacing:2px; margin-bottom:10px;">VideoTrainSimulator</h2>
+            <h2 style="letter-spacing:2px; margin-bottom:10px;">JREast Simulator Pro</h2>
             <div id="upload-box">
                 <input type="file" id="video-input" accept="video/*" style="display:none;">
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('video-input').click()">选择视频文件</button>
-                <div id="load-msg">等待视频上传...</div>
             </div>
             
             <div id="file-ready" style="display:none; margin-top:25px; border-top:1px solid #333; padding-top:20px;">
                 <div class="setting-row">
-                    <label>线路达速 (1.0x时速)：</label>
+                    <label>运行规则选择：</label>
+                    <select id="cfg-rule">
+                        <option value="reality">现实模拟规则 (直线逻辑+全域加速)</option>
+                        <option value="dynamic">动力补偿规则 (经典位移追赶)</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>达速最高时速：</label>
                     <input type="number" id="cfg-line-speed" value="80"> <span>km/h</span>
                 </div>
                 <div class="setting-row">
-                    <label>动力补偿窗口 (Window)：</label>
-                    <input type="number" id="cfg-v-accel" value="15"> <span>秒</span>
+                    <label>动力模拟/补偿窗口：</label>
+                    <input type="number" id="cfg-v-accel" value="40"> <span>秒</span>
                 </div>
-                <button type="button" class="btn btn-success" onclick="startSimulator()">进入驾驶室</button>
-                <button type="button" class="btn btn-outline" onclick="openEditor()">打点微调编辑器</button>
+                <button type="button" class="btn btn-success" onclick="startSimulator()">启动驾驶室</button>
+                <button type="button" class="btn btn-outline" onclick="openEditor()">打点编辑器</button>
             </div>
         </div>
     </div>
 
     <div id="screen-editor" class="screen">
         <div id="editor-layout">
-            <video id="preview-video" preload="auto" muted></video>
+            <video id="preview-video" preload="auto" playsinline muted></video>
             <input type="range" id="scrubber" value="0" step="0.001">
             <div style="display:flex; justify-content: space-between; align-items: flex-end;">
+                <div id="edit-time" style="font-size:32px; font-family:monospace; color:#0af;">00:00.000</div>
                 <div>
-                    <div id="edit-time" style="font-size:36px; font-family:monospace; color:#0af;">00:00.000</div>
-                    <div style="font-size:12px; color:#666;">空格: 播/暂 | ←/→: 步进 1 秒</div>
-                </div>
-                <div>
-                    <button type="button" class="btn btn-primary" onclick="setMark('stop')">标记停车点</button>
-                    <button type="button" class="btn btn-primary" onclick="setMark('depart')">标记发车点</button>
+                    <button class="btn btn-primary" onclick="setMark('stop')">标记停车点</button>
+                    <button class="btn btn-primary" onclick="setMark('depart')">标记发车点</button>
                 </div>
             </div>
-            <div class="marker-log" id="marker-log"></div>
-            <div style="margin-top:20px;">
-                <button type="button" class="btn btn-success" onclick="closeEditor()">保存并返回</button>
-                <button type="button" class="btn btn-outline" onclick="exportJSON()">导出 JSON</button>
-                <button type="button" class="btn btn-outline" onclick="document.getElementById('import-json').click()">导入 JSON</button>
+            <div class="marker-log" id="marker-log">请使用空格播放视频进行标记</div>
+            <div style="margin-top:15px;">
+                <button class="btn btn-success" onclick="closeEditor()">保存并返回</button>
+                <button class="btn btn-outline" onclick="exportJSON()">导出 JSON</button>
+                <button class="btn btn-outline" onclick="document.getElementById('import-json').click()">导入 JSON</button>
                 <input type="file" id="import-json" accept=".json" style="display:none;">
             </div>
         </div>
@@ -92,243 +93,190 @@
 
     <div id="game-container" class="screen">
         <div id="bench-display">
-            <div class="timer-box" id="box-stop">
-                <div class="timer-label">Distance to Stop</div>
-                <div class="timer-val" id="time-to-stop">--:--</div>
-            </div>
-            <div class="timer-box" id="box-depart" style="opacity:0.3;">
-                <div class="timer-label">Time to Depart</div>
-                <div class="timer-val" id="time-to-depart">--:--</div>
-            </div>
+            <div class="timer-box"><div class="timer-val" id="time-to-stop">--:--</div></div>
         </div>
         <video id="main-video" playsinline muted></video>
         <div id="hud">
             <div class="notch-val" id="notch-txt">N</div>
-            <div id="speed-txt" style="font-size:24px; font-weight:bold; margin-top:5px;">0.0 km/h</div>
-            <div id="debug-info" style="font-size:10px; color:#444; margin-top:15px; font-family:monospace; border-top:1px solid #222; padding-top:5px;">SYNC_V3_ACTIVE</div>
+            <div id="speed-txt">0.0 km/h</div>
+            <div class="rate-info">MODE: <span id="ui-mode-name">-</span></div>
+            <div class="rate-info">ACTUAL RATE: <b id="rate-display">0.00x</b></div>
         </div>
     </div>
 
 <script>
-    // --- 全局状态 ---
     let markers = { stops: [], departs: [] };
-    let currentNotch = 0;
-    let logicalV = 0;      // 玩家当前的物理倍率 (0.0 - 5.0)
-    let virtualDist = 0;   // 玩家理论走过的位移 (秒位移)
-    let isDoorOpen = false;
-    let activeScreen = 'start';
-    let lastTick = performance.now();
-    let compWindow = 15;
-    let maxLineSpeed = 80;
+    let currentNotch = 0, logicalV = 0, virtualDist = 0, isDoorOpen = false, activeScreen = 'start';
+    let lastTick = performance.now(), compWindow = 40, maxLineSpeed = 80, selectedRule = 'reality';
+    let smoothedRate = 0;
 
     const v = document.getElementById('main-video');
     const pv = document.getElementById('preview-video');
     const scrubber = document.getElementById('scrubber');
-    const loadMsg = document.getElementById('load-msg');
 
-    // --- 修复加载 Bug ---
     document.getElementById('video-input').onchange = e => {
         const file = e.target.files[0];
         if(!file) return;
-        
-        loadMsg.innerText = "读取视频中...";
         const url = URL.createObjectURL(file);
-        v.src = url; 
-        pv.src = url;
-        
-        // 强制触发布置
-        const checkLoad = () => {
-            if (v.readyState >= 1) {
-                loadMsg.innerText = "视频已就绪";
-                document.getElementById('file-ready').style.display = 'block';
-                scrubber.max = v.duration;
-                updateMarkerLog();
-            } else {
-                setTimeout(checkLoad, 200);
-            }
+        v.src = url; pv.src = url;
+        v.load(); pv.load();
+        v.onloadedmetadata = () => {
+            document.getElementById('file-ready').style.display = 'block';
+            scrubber.max = v.duration;
         };
-        checkLoad();
     };
 
-    // --- 键盘事件 ---
     window.addEventListener('keydown', e => {
         if (activeScreen === 'editor') {
             if (e.code === 'Space') { e.preventDefault(); pv.paused ? pv.play() : pv.pause(); }
-            if (e.key === 'ArrowLeft') { e.preventDefault(); pv.currentTime -= 1; scrubber.value = pv.currentTime; }
-            if (e.key === 'ArrowRight') { e.preventDefault(); pv.currentTime += 1; scrubber.value = pv.currentTime; }
+            if (e.key === 'ArrowLeft') pv.currentTime -= 1;
+            if (e.key === 'ArrowRight') pv.currentTime += 1;
         }
         if (activeScreen === 'game') {
-            v.muted = false; // 交互后解禁声音
-            if (isDoorOpen && e.key !== 'ArrowLeft') return;
-            if (e.key === 'ArrowUp') { if(currentNotch < 5) currentNotch++; updateUI(); }
-            if (e.key === 'ArrowDown') { if(currentNotch > -5) currentNotch--; updateUI(); }
+            if (!isDoorOpen) {
+                if (e.key === 'ArrowUp') { currentNotch = Math.min(5, currentNotch + 1); updateUI(); }
+                if (e.key === 'ArrowDown') { currentNotch = Math.max(-5, currentNotch - 1); updateUI(); }
+            }
             if (e.key === 'ArrowLeft') toggleDoor();
+            if (e.key.toLowerCase() === 's') handleSkip();
         }
     });
-
-    // 编辑器同步
-    pv.ontimeupdate = () => { 
-        if(activeScreen === 'editor') { 
-            document.getElementById('edit-time').innerText = formatTime(pv.currentTime); 
-            if(!pv.paused) scrubber.value = pv.currentTime; 
-        } 
-    };
-    scrubber.oninput = () => { 
-        pv.currentTime = scrubber.value; 
-        document.getElementById('edit-time').innerText = formatTime(pv.currentTime); 
-    };
-
-    function openEditor() { activeScreen = 'editor'; switchScreen('screen-editor'); }
-    function closeEditor() { activeScreen = 'start'; switchScreen('screen-start'); }
-    function switchScreen(id) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-    }
-
-    function setMark(type) {
-        const t = pv.currentTime;
-        type === 'stop' ? markers.stops.push(t) : markers.departs.push(t);
-        markers.stops.sort((a,b)=>a-b); markers.departs.sort((a,b)=>a-b);
-        updateMarkerLog();
-    }
-    
-    function updateMarkerLog() {
-        document.getElementById('marker-log').innerHTML = `<b>停车对标:</b> ${markers.stops.map(t=>t.toFixed(1)).join(", ") || "无"}<br><b>发车对标:</b> ${markers.departs.map(t=>t.toFixed(1)).join(", ") || "无"}`;
-    }
-
-    // --- 模拟器启动 ---
-    function startSimulator() {
-        activeScreen = 'game';
-        compWindow = parseFloat(document.getElementById('cfg-v-accel').value) || 15;
-        maxLineSpeed = parseFloat(document.getElementById('cfg-line-speed').value) || 80;
-        switchScreen('game-container');
-        
-        v.currentTime = 0;
-        virtualDist = 0;
-        logicalV = 0;
-        currentNotch = 0;
-        
-        v.play().then(() => v.pause()); // 预播放解锁
-        lastTick = performance.now();
-        requestAnimationFrame(gameLoop);
-    }
 
     function toggleDoor() {
         if(logicalV < 0.05) {
             isDoorOpen = !isDoorOpen;
-            if(isDoorOpen) {
-                currentNotch = 0; v.playbackRate = 1.0; v.play();
-                document.getElementById('box-depart').style.opacity = "1";
-            } else {
-                v.pause(); logicalV = 0;
-                // 关键：关门时，将虚拟里程与当前视频进度对齐
-                virtualDist = v.currentTime; 
-                document.getElementById('box-depart').style.opacity = "0.3";
-            }
+            if(isDoorOpen) { currentNotch = 0; v.playbackRate = 1.0; v.play(); v.muted = false; }
+            else { v.pause(); logicalV = 0; virtualDist = v.currentTime; }
             updateUI();
         }
     }
 
-    // --- 核心循环 (增强版动力补偿) ---
+    function handleSkip() {
+        const cur = v.currentTime;
+        const next = markers.departs.find(t => t > cur);
+        if (next && (next - cur) > 5) { v.currentTime = next - 5; virtualDist = v.currentTime; }
+    }
+
+    // 编辑器
+    pv.ontimeupdate = () => { if(activeScreen === 'editor') { document.getElementById('edit-time').innerText = formatTime(pv.currentTime); scrubber.value = pv.currentTime; } };
+    scrubber.oninput = () => { pv.currentTime = scrubber.value; };
+    function openEditor() { activeScreen = 'editor'; switchScreen('screen-editor'); pv.currentTime = 0.1; }
+    function closeEditor() { activeScreen = 'start'; switchScreen('screen-start'); pv.pause(); }
+    function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+    function setMark(type) {
+        const t = pv.currentTime;
+        type === 'stop' ? markers.stops.push(t) : markers.departs.push(t);
+        markers.stops.sort((a,b)=>a-b); markers.departs.sort((a,b)=>a-b);
+        document.getElementById('marker-log').innerText = `STOPS: ${markers.stops.length} | DEPARTS: ${markers.departs.length}`;
+    }
+
+    function startSimulator() {
+        activeScreen = 'game';
+        selectedRule = document.getElementById('cfg-rule').value;
+        compWindow = parseFloat(document.getElementById('cfg-v-accel').value) || 40;
+        maxLineSpeed = parseFloat(document.getElementById('cfg-line-speed').value) || 80;
+        document.getElementById('ui-mode-name').innerText = selectedRule === 'reality' ? "现实模拟" : "动力补偿";
+        switchScreen('game-container');
+        v.currentTime = 0; virtualDist = 0; logicalV = 0; currentNotch = 0; smoothedRate = 0;
+        v.play().then(() => v.pause());
+        lastTick = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // --- 核心修复：V6.6 直线动力引擎 ---
     function gameLoop(now) {
         const dt = (now - lastTick) / 1000;
         lastTick = now;
 
         if(activeScreen === 'game') {
             if(!isDoorOpen) {
-                // 1. 物理引擎：P1=0.1x/s, B1=0.28x/s
-                const accel = currentNotch * 0.1;
-                const brake = currentNotch * 0.28;
-                if(currentNotch > 0) logicalV += accel * dt;
-                else if(currentNotch < 0) logicalV += brake * dt;
-                
-                logicalV = Math.max(0, Math.min(5.0, logicalV));
-                if(logicalV < 0.001) logicalV = 0;
-
-                // 2. 虚拟里程积分：计算理想位移
-                virtualDist += logicalV * dt;
-
-                // 3. 对标对冲计算 (Symmetric Compensation)
-                let videoRefSpeed = 1.0;
                 const cur = v.currentTime;
                 const nextStop = markers.stops.find(t => t > cur);
-                const lastDepart = [...markers.departs].reverse().find(t => t <= cur);
+                // 修复点：如果没有标记发车点，隐式认为 0 秒是发车点
+                const departList = markers.departs.length > 0 ? markers.departs : [0];
+                const lastDepart = [...departList].reverse().find(t => t <= cur);
+                
+                if (selectedRule === 'reality') {
+                    let isSpecialZone = false, mode = "", timeLeft = 0;
 
-                // 判断是否在补偿窗口内
-                if (nextStop && (nextStop - cur) < compWindow) {
-                    videoRefSpeed = Math.max((nextStop - cur) / compWindow, 0.05);
-                } else if (lastDepart !== undefined && (cur - lastDepart) < compWindow) {
-                    videoRefSpeed = Math.max((cur - lastDepart) / compWindow, 0.05);
-                } else if (cur < 5 && markers.departs.length === 0) {
-                    // 首站默认起步补偿
-                    videoRefSpeed = Math.max(cur / 5, 0.1);
+                    if (lastDepart !== undefined && (cur - lastDepart) < compWindow) {
+                        isSpecialZone = true; mode = "depart"; timeLeft = compWindow - (cur - lastDepart);
+                    } else if (nextStop && (nextStop - cur) < compWindow) {
+                        isSpecialZone = true; mode = "stop"; timeLeft = nextStop - cur;
+                    }
+
+                    if (isSpecialZone) {
+                        // 1. 直线仪表速 (0.0 <-> 1.0)
+                        logicalV = (mode === "depart") ? (cur - lastDepart) / compWindow : (nextStop - cur) / compWindow;
+
+                        // 2. 直线倍率变换 (2.5秒)
+                        let targetRate = (mode === "depart") ? (currentNotch > 0 ? currentNotch : 0) : (currentNotch < 0 ? 1.0/Math.abs(currentNotch) : 16.0);
+                        let step = (5.0 / 2.5) * dt;
+
+                        if (mode === "depart" && currentNotch <= 0) {
+                            smoothedRate = Math.max(0.01, smoothedRate - 0.1 * dt); // 惩罚：降速
+                        } else if (mode === "stop" && currentNotch >= 0) {
+                            smoothedRate = Math.min(16, smoothedRate + 0.05 * dt); // 惩罚：冲站
+                        } else {
+                            if (Math.abs(smoothedRate - targetRate) < step) smoothedRate = targetRate;
+                            else smoothedRate += (smoothedRate < targetRate) ? step : -step;
+                        }
+
+                        // 回归常速逻辑
+                        let regTime = Math.min(5, compWindow * 0.2);
+                        if (timeLeft < regTime) {
+                            let ratio = timeLeft / regTime;
+                            smoothedRate = (smoothedRate * ratio) + (1.0 * (1 - ratio));
+                        }
+                    } else {
+                        // 巡航逻辑
+                        if(currentNotch > 0) logicalV += currentNotch * 0.05 * dt;
+                        else if(currentNotch < 0) logicalV += currentNotch * 0.1 * dt;
+                        logicalV = Math.max(0, Math.min(5.0, logicalV));
+                        smoothedRate = logicalV + ((virtualDist - cur) * 0.5);
+                    }
+                    virtualDist = cur;
+                } else {
+                    // 动力补偿逻辑...
+                    if(currentNotch > 0) logicalV += currentNotch * 0.05 * dt;
+                    else if(currentNotch < 0) logicalV += currentNotch * 0.1 * dt;
+                    logicalV = Math.max(0, Math.min(5.0, logicalV));
+                    virtualDist += logicalV * dt;
+                    let targetRate = logicalV + ((virtualDist - cur) * (10/compWindow));
+                    smoothedRate = smoothedRate + (targetRate - smoothedRate) * 0.15;
                 }
 
-                // 4. 里程追赶逻辑 (Elastic Pursuit)
-                // 误差 = 理想里程 - 实际视频进度
-                const error = virtualDist - v.currentTime;
-                // 追赶力度系数 (1.5 为弹性增益)
-                const pursuitForce = error * 1.5;
-                
-                // 最终播放倍率 = (理想速度 / 视频原速参考) + 误差修正力
-                let finalRate = (logicalV / videoRefSpeed) + pursuitForce;
-
-                // 5. 执行播放
-                if(logicalV > 0) {
-                    v.playbackRate = Math.min(Math.max(finalRate, 0.0625), 16);
+                // 执行播放 (增加 0.01 最小速度保底防止死锁)
+                if(currentNotch !== 0 || logicalV > 0) {
+                    v.playbackRate = Math.min(Math.max(smoothedRate, 0.0625), 16);
                     if(v.paused) v.play().catch(()=>{});
                 } else {
-                    if(!v.paused) v.pause();
-                    virtualDist = v.currentTime; // 停车时强制对齐
+                    v.pause(); virtualDist = v.currentTime; smoothedRate = 0;
                 }
             }
-
-            // UI 刷新
-            const displaySpeed = (logicalV * maxLineSpeed).toFixed(1);
-            document.getElementById('speed-txt').innerText = displaySpeed + " km/h";
-            document.getElementById('debug-info').innerText = `POS_ERR: ${(virtualDist - v.currentTime).toFixed(2)}s | RATE: ${v.playbackRate.toFixed(2)}x`;
-            
+            document.getElementById('speed-txt').innerText = (logicalV * maxLineSpeed).toFixed(1) + " km/h";
+            document.getElementById('rate-display').innerText = v.paused ? "0.00x" : v.playbackRate.toFixed(2) + "x";
             updateTimers();
         }
         requestAnimationFrame(gameLoop);
     }
 
-    function updateUI() {
-        const nt = document.getElementById('notch-txt');
-        if(isDoorOpen) { nt.innerText = "OPEN"; nt.style.color = "#ffc107"; return; }
-        const label = currentNotch > 0 ? "P" + currentNotch : (currentNotch < 0 ? "B" + Math.abs(currentNotch) : "N");
-        const color = currentNotch > 0 ? "#0af" : (currentNotch < 0 ? "#f44" : "#0f0");
-        nt.innerText = label; nt.style.color = color;
-        document.body.style.setProperty('--accent', color);
-    }
-
     function updateTimers() {
         const cur = v.currentTime;
-        const nextStop = markers.stops.find(t => t > cur);
-        const nextDepart = markers.departs.find(t => t > cur);
-        
-        document.getElementById('time-to-stop').innerText = nextStop && !isDoorOpen ? (nextStop - cur).toFixed(1) + "s" : "--:--";
-        document.getElementById('time-to-depart').innerText = nextDepart && isDoorOpen ? (nextDepart - cur).toFixed(1) + "s" : "--:--";
+        const next = markers.stops.find(t => t > cur);
+        document.getElementById('time-to-stop').innerText = next ? (next - cur).toFixed(1) + "s" : "--:--";
     }
 
-    // JSON 处理
-    function exportJSON() {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([JSON.stringify(markers)], {type:"application/json"}));
-        a.download = "sim_data.json";
-        a.click();
+    function updateUI() {
+        const nt = document.getElementById('notch-txt');
+        const label = currentNotch > 0 ? "P" + currentNotch : (currentNotch < 0 ? "B" + Math.abs(currentNotch) : "N");
+        nt.innerText = isDoorOpen ? "OPEN" : label;
+        nt.style.color = isDoorOpen ? "#ffc107" : (currentNotch > 0 ? "#0af" : (currentNotch < 0 ? "#f44" : "#0f0"));
     }
-    document.getElementById('import-json').onchange = e => {
-        const r = new FileReader();
-        r.onload = ev => { markers = JSON.parse(ev.target.result); updateMarkerLog(); alert("对标导入成功"); };
-        r.readAsText(e.target.files[0]);
-    };
 
-    function formatTime(s) {
-        const m = Math.floor(s / 60);
-        const ss = (s % 60).toFixed(3);
-        return (m < 10 ? "0"+m : m) + ":" + (ss < 10 ? "0"+ss : ss);
-    }
+    function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(markers)], {type:"application/json"})); a.download = "sim.json"; a.click(); }
+    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); alert("已载入"); }; r.readAsText(e.target.files[0]); };
+    function formatTime(s) { const m = Math.floor(s / 60); const ss = (s % 60).toFixed(3); return (m < 10 ? "0"+m : m) + ":" + (ss < 10 ? "0"+ss : ss); }
 </script>
 </body>
 </html>
