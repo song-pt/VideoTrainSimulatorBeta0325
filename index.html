@@ -27,25 +27,27 @@
             border-radius: 4px; border: 1px solid #333; pointer-events: none;
             display: flex; flex-direction: column; gap: 10px;
         }
-        .timer-item { display: flex; flex-direction: column; transition: 0.3s; }
         .timer-val { font-size: 36px; font-weight: bold; font-family: monospace; line-height: 1; }
         .timer-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        .active-timer { color: #0af; }
-        .warning-timer { color: #ffc107; }
+
+        /* 编辑器专用增强 */
+        #editor-layout { width: 95%; max-width: 1000px; display: flex; flex-direction: column; gap: 15px; }
+        #preview-video { width: 100%; background: #111; border-radius: 8px; border: 1px solid #333; max-height: 55vh; }
+        #scrubber { width: 100%; cursor: pointer; height: 12px; accent-color: #0078d4; }
+        
+        /* 标记计数器样式 */
+        .marker-counter { display: flex; gap: 20px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .count-stop { color: #f44; }
+        .count-depart { color: #0af; }
+        .marker-log { background: #0a0a0a; height: 80px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border: 1px solid #222; color: #666; text-align: left; }
 
         /* 游戏视图 */
         #game-container { position: relative; width: 100vw; height: 100vh; }
         video#main-video { width: 100%; height: 100%; object-fit: contain; }
-        
-        #hud { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.9); padding: 25px; border-left: 6px solid var(--accent); min-width: 260px; text-align: right; pointer-events: none; }
+        #hud { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.9); padding: 25px; border-left: 6px solid var(--accent); min-width: 260px; text-align: right; }
         .notch-val { font-size: 72px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--accent); line-height: 0.8; }
         #speed-txt { font-size: 26px; font-weight: bold; margin-top: 5px; }
         .rate-info { font-size: 13px; color: #444; margin-top: 6px; font-family: monospace; }
-        
-        /* 编辑器略... (保持V6.6逻辑) */
-        #editor-layout { width: 95%; max-width: 1000px; }
-        #preview-video { width: 100%; background: #111; border-radius: 8px; max-height: 55vh; }
-        #scrubber { width: 100%; margin: 15px 0; height: 10px; accent-color: #0078d4; }
     </style>
 </head>
 <body>
@@ -55,7 +57,7 @@
             <h2 style="letter-spacing:2px; margin-bottom:10px;">VideoTrainSimulator</h2>
             <div id="upload-box">
                 <input type="file" id="video-input" accept="video/*" style="display:none;">
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('video-input').click()">选择展望视频</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('video-input').click()">选择视频文件</button>
             </div>
             
             <div id="file-ready" style="display:none; margin-top:25px; border-top:1px solid #333; padding-top:20px;">
@@ -74,7 +76,7 @@
                     <label>动力模拟区间 (Window)：</label>
                     <input type="number" id="cfg-v-accel" value="40"> <span>秒</span>
                 </div>
-                <button type="button" class="btn btn-success" onclick="startSimulator()">启动驾驶室</button>
+                <button type="button" class="btn btn-success" onclick="startSimulator()">启动模拟器</button>
                 <button type="button" class="btn btn-outline" onclick="openEditor()">打点编辑器</button>
             </div>
         </div>
@@ -82,16 +84,21 @@
 
     <div id="screen-editor" class="screen">
         <div id="editor-layout">
-            <video id="preview-video" preload="auto" muted></video>
+            <div class="marker-counter">
+                <div class="count-stop">停车点计数：<span id="cnt-stop">0</span></div>
+                <div class="count-depart">发车点计数：<span id="cnt-depart">0</span></div>
+            </div>
+            <video id="preview-video" preload="auto" playsinline muted></video>
             <input type="range" id="scrubber" value="0" step="0.001">
-            <div style="display:flex; justify-content: space-between;">
-                <div id="edit-time" style="font-size:32px; font-family:monospace; color:#0af;">00:00.000</div>
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                <div id="edit-time" style="font-size:36px; font-family:monospace; color:#0af;">00:00.000</div>
                 <div>
-                    <button class="btn btn-primary" onclick="setMark('stop')">标记停车点</button>
-                    <button class="btn btn-primary" onclick="setMark('depart')">标记发车点</button>
+                    <button class="btn btn-primary" style="background:#f44;" onclick="setMark('stop')">标记停车点</button>
+                    <button class="btn btn-primary" style="background:#0af;" onclick="setMark('depart')">标记发车点</button>
                 </div>
             </div>
-            <div style="margin-top:15px; text-align:center;">
+            <div class="marker-log" id="marker-log">等待打点数据...</div>
+            <div style="text-align:center;">
                 <button class="btn btn-success" onclick="closeEditor()">保存并返回</button>
                 <button class="btn btn-outline" onclick="exportJSON()">导出 JSON</button>
                 <button class="btn btn-outline" onclick="document.getElementById('import-json').click()">导入 JSON</button>
@@ -108,7 +115,7 @@
             </div>
             <div class="timer-item" id="hud-depart" style="display:none;">
                 <div class="timer-label">Door Closing In</div>
-                <div class="timer-val warning-timer" id="time-to-depart">--:--</div>
+                <div class="timer-val" style="color:#ffc107" id="time-to-depart">--:--</div>
             </div>
         </div>
         <video id="main-video" playsinline muted></video>
@@ -136,7 +143,10 @@
         const url = URL.createObjectURL(file);
         v.src = url; pv.src = url;
         v.load(); pv.load();
-        v.onloadedmetadata = () => document.getElementById('file-ready').style.display = 'block';
+        v.onloadedmetadata = () => {
+            document.getElementById('file-ready').style.display = 'block';
+            scrubber.max = v.duration;
+        };
     };
 
     window.addEventListener('keydown', e => {
@@ -170,15 +180,38 @@
         if (next && (next - cur) > 5) { v.currentTime = next - 5; virtualDist = v.currentTime; }
     }
 
-    pv.ontimeupdate = () => { if(activeScreen === 'editor') { document.getElementById('edit-time').innerText = formatTime(pv.currentTime); scrubber.value = pv.currentTime; } };
+    // 编辑器核心逻辑
+    pv.ontimeupdate = () => { 
+        if(activeScreen === 'editor') { 
+            document.getElementById('edit-time').innerText = formatTime(pv.currentTime); 
+            scrubber.value = pv.currentTime; 
+        } 
+    };
     scrubber.oninput = () => { pv.currentTime = scrubber.value; };
-    function openEditor() { activeScreen = 'editor'; switchScreen('screen-editor'); }
+    
+    function openEditor() { 
+        activeScreen = 'editor'; 
+        switchScreen('screen-editor'); 
+        pv.currentTime = 0.1; 
+        updateMarkerLog(); // 确保打开时更新一次计数
+    }
+    
     function closeEditor() { activeScreen = 'start'; switchScreen('screen-start'); pv.pause(); }
     function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
     function setMark(type) {
         const t = pv.currentTime;
         type === 'stop' ? markers.stops.push(t) : markers.departs.push(t);
         markers.stops.sort((a,b)=>a-b); markers.departs.sort((a,b)=>a-b);
+        updateMarkerLog();
+    }
+
+    function updateMarkerLog() {
+        document.getElementById('cnt-stop').innerText = markers.stops.length;
+        document.getElementById('cnt-depart').innerText = markers.departs.length;
+        document.getElementById('marker-log').innerHTML = 
+            `STOPS: ${markers.stops.map(t=>t.toFixed(1)).join(", ") || "None"}<br>` +
+            `DEPARTS: ${markers.departs.map(t=>t.toFixed(1)).join(", ") || "None"}`;
     }
 
     function startSimulator() {
@@ -194,7 +227,7 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // --- 核心引擎 V6.7 (仪表速同步修复) ---
+    // --- 核心双模引擎 V6.8 ---
     function gameLoop(now) {
         const dt = (now - lastTick) / 1000;
         lastTick = now;
@@ -208,7 +241,6 @@
                 
                 if (selectedRule === 'reality') {
                     let isSpecialZone = false, mode = "", timeLeft = 0;
-
                     if (lastDepart !== undefined && (cur - lastDepart) < compWindow) {
                         isSpecialZone = true; mode = "depart"; timeLeft = compWindow - (cur - lastDepart);
                     } else if (nextStop && (nextStop - cur) < compWindow) {
@@ -216,7 +248,6 @@
                     }
 
                     if (isSpecialZone) {
-                        // 1. 直线倍率变换 (2.5秒)
                         let targetRate = (mode === "depart") ? (currentNotch > 0 ? currentNotch : 0) : (currentNotch < 0 ? 1.0/Math.abs(currentNotch) : 16.0);
                         let step = (5.0 / 2.5) * dt;
 
@@ -227,20 +258,14 @@
                             else smoothedRate += (smoothedRate < targetRate) ? step : -step;
                         }
 
-                        // 5秒交接回归逻辑
                         let regTime = Math.min(5, compWindow * 0.2);
                         if (timeLeft < regTime) {
                             let ratio = timeLeft / regTime;
                             smoothedRate = (smoothedRate * ratio) + (1.0 * (1 - ratio));
                         }
-
-                        // 【修复点】仪表速同步：时速 = 实际倍率 * 线性进度
-                        // 这样倍率掉，表就掉；倍率正常，表才爬升。
                         let progress = (mode === "depart") ? (cur - lastDepart) / compWindow : (nextStop - cur) / compWindow;
                         logicalV = smoothedRate * progress;
-
                     } else {
-                        // 巡航逻辑
                         if(currentNotch > 0) logicalV += currentNotch * 0.05 * dt;
                         else if(currentNotch < 0) logicalV += currentNotch * 0.1 * dt;
                         logicalV = Math.max(0, Math.min(5.0, logicalV));
@@ -248,7 +273,6 @@
                     }
                     virtualDist = cur;
                 } else {
-                    // 动力补偿规则略...
                     if(currentNotch > 0) logicalV += currentNotch * 0.05 * dt;
                     else if(currentNotch < 0) logicalV += currentNotch * 0.1 * dt;
                     logicalV = Math.max(0, Math.min(5.0, logicalV));
@@ -265,21 +289,19 @@
             }
             document.getElementById('speed-txt').innerText = (logicalV * maxLineSpeed).toFixed(1) + " km/h";
             document.getElementById('rate-display').innerText = v.paused ? "0.00x" : v.playbackRate.toFixed(2) + "x";
-            updateTimers();
+            updateHUDTimers();
         }
         requestAnimationFrame(gameLoop);
     }
 
-    function updateTimers() {
+    function updateHUDTimers() {
         const cur = v.currentTime;
         const nextStop = markers.stops.find(t => t > cur);
         const nextDepart = markers.departs.find(t => t > cur);
         
-        // 1. 到站倒计时
         document.getElementById('time-to-stop').innerText = nextStop ? (nextStop - cur).toFixed(1) + "s" : "--:--";
         document.getElementById('hud-stop').style.display = isDoorOpen ? "none" : "flex";
 
-        // 2. 发车倒计时 (仅开门时显示)
         const departBox = document.getElementById('hud-depart');
         if (isDoorOpen && nextDepart) {
             departBox.style.display = "flex";
@@ -297,7 +319,7 @@
     }
 
     function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(markers)], {type:"application/json"})); a.download = "sim.json"; a.click(); }
-    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); alert("数据载入成功"); }; r.readAsText(e.target.files[0]); };
+    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); updateMarkerLog(); alert("数据载入成功"); }; r.readAsText(e.target.files[0]); };
     function formatTime(s) { const m = Math.floor(s / 60); const ss = (s % 60).toFixed(3); return (m < 10 ? "0"+m : m) + ":" + (ss < 10 ? "0"+ss : ss); }
 </script>
 </body>
