@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>VideoSimulator</title>
+    <title>VideoTrainSimulator</title>
     <style>
         :root { --accent: #00ff00; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: white; font-family: "Segoe UI", sans-serif; overflow: hidden; }
@@ -18,50 +18,60 @@
         .btn:hover { transform: scale(1.03); opacity: 0.9; }
 
         .setting-row { margin: 15px 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #bbb; }
-        input, select { background: #000; color: #0f0; border: 1px solid #444; padding: 6px; text-align: center; border-radius: 4px; }
+        input, select { background: #000; color: #0f0; border: 1px solid #444; padding: 6px; text-align: center; border-radius: 4px; outline: none; }
 
-        /* HUD */
+        /* HUD - 实时倒计时 */
+        #bench-display { 
+            position: absolute; top: 30px; left: 30px; 
+            background: rgba(0,0,0,0.85); padding: 15px 25px; 
+            border-radius: 4px; border: 1px solid #333; pointer-events: none;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .timer-item { display: flex; flex-direction: column; transition: 0.3s; }
+        .timer-val { font-size: 36px; font-weight: bold; font-family: monospace; line-height: 1; }
+        .timer-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .active-timer { color: #0af; }
+        .warning-timer { color: #ffc107; }
+
+        /* 游戏视图 */
         #game-container { position: relative; width: 100vw; height: 100vh; }
         video#main-video { width: 100%; height: 100%; object-fit: contain; }
+        
         #hud { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.9); padding: 25px; border-left: 6px solid var(--accent); min-width: 260px; text-align: right; pointer-events: none; }
         .notch-val { font-size: 72px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--accent); line-height: 0.8; }
         #speed-txt { font-size: 26px; font-weight: bold; margin-top: 5px; }
-        .rate-info { font-size: 13px; color: #666; margin-top: 6px; font-family: monospace; }
+        .rate-info { font-size: 13px; color: #444; margin-top: 6px; font-family: monospace; }
         
-        #bench-display { position: absolute; top: 40px; left: 40px; background: rgba(0,0,0,0.85); padding: 20px; border-radius: 4px; border: 1px solid #333; pointer-events: none; }
-        .timer-val { font-size: 32px; font-weight: bold; font-family: monospace; }
-        
-        /* Editor */
+        /* 编辑器略... (保持V6.6逻辑) */
         #editor-layout { width: 95%; max-width: 1000px; }
         #preview-video { width: 100%; background: #111; border-radius: 8px; max-height: 55vh; }
         #scrubber { width: 100%; margin: 15px 0; height: 10px; accent-color: #0078d4; }
-        .marker-log { background: #0a0a0a; height: 80px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border: 1px solid #222; color: #0f0; text-align: left; }
     </style>
 </head>
 <body>
 
     <div id="screen-start" class="screen active">
         <div class="config-card">
-            <h2 style="letter-spacing:2px; margin-bottom:10px;">VideoSimulator</h2>
+            <h2 style="letter-spacing:2px; margin-bottom:10px;">VideoTrainSimulator</h2>
             <div id="upload-box">
                 <input type="file" id="video-input" accept="video/*" style="display:none;">
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('video-input').click()">选择视频文件</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('video-input').click()">选择展望视频</button>
             </div>
             
             <div id="file-ready" style="display:none; margin-top:25px; border-top:1px solid #333; padding-top:20px;">
                 <div class="setting-row">
                     <label>运行规则选择：</label>
                     <select id="cfg-rule">
-                        <option value="reality">现实模拟规则 (直线逻辑+全域加速)</option>
+                        <option value="reality">现实模拟规则 (仪表同步+直线变速)</option>
                         <option value="dynamic">动力补偿规则 (经典位移追赶)</option>
                     </select>
                 </div>
                 <div class="setting-row">
-                    <label>达速最高时速：</label>
+                    <label>线路达速速度：</label>
                     <input type="number" id="cfg-line-speed" value="80"> <span>km/h</span>
                 </div>
                 <div class="setting-row">
-                    <label>动力模拟/补偿窗口：</label>
+                    <label>动力模拟区间 (Window)：</label>
                     <input type="number" id="cfg-v-accel" value="40"> <span>秒</span>
                 </div>
                 <button type="button" class="btn btn-success" onclick="startSimulator()">启动驾驶室</button>
@@ -72,17 +82,16 @@
 
     <div id="screen-editor" class="screen">
         <div id="editor-layout">
-            <video id="preview-video" preload="auto" playsinline muted></video>
+            <video id="preview-video" preload="auto" muted></video>
             <input type="range" id="scrubber" value="0" step="0.001">
-            <div style="display:flex; justify-content: space-between; align-items: flex-end;">
+            <div style="display:flex; justify-content: space-between;">
                 <div id="edit-time" style="font-size:32px; font-family:monospace; color:#0af;">00:00.000</div>
                 <div>
                     <button class="btn btn-primary" onclick="setMark('stop')">标记停车点</button>
                     <button class="btn btn-primary" onclick="setMark('depart')">标记发车点</button>
                 </div>
             </div>
-            <div class="marker-log" id="marker-log">请使用空格播放视频进行标记</div>
-            <div style="margin-top:15px;">
+            <div style="margin-top:15px; text-align:center;">
                 <button class="btn btn-success" onclick="closeEditor()">保存并返回</button>
                 <button class="btn btn-outline" onclick="exportJSON()">导出 JSON</button>
                 <button class="btn btn-outline" onclick="document.getElementById('import-json').click()">导入 JSON</button>
@@ -93,7 +102,14 @@
 
     <div id="game-container" class="screen">
         <div id="bench-display">
-            <div class="timer-box"><div class="timer-val" id="time-to-stop">--:--</div></div>
+            <div class="timer-item" id="hud-stop">
+                <div class="timer-label">Distance to Stop</div>
+                <div class="timer-val" id="time-to-stop">--:--</div>
+            </div>
+            <div class="timer-item" id="hud-depart" style="display:none;">
+                <div class="timer-label">Door Closing In</div>
+                <div class="timer-val warning-timer" id="time-to-depart">--:--</div>
+            </div>
         </div>
         <video id="main-video" playsinline muted></video>
         <div id="hud">
@@ -120,10 +136,7 @@
         const url = URL.createObjectURL(file);
         v.src = url; pv.src = url;
         v.load(); pv.load();
-        v.onloadedmetadata = () => {
-            document.getElementById('file-ready').style.display = 'block';
-            scrubber.max = v.duration;
-        };
+        v.onloadedmetadata = () => document.getElementById('file-ready').style.display = 'block';
     };
 
     window.addEventListener('keydown', e => {
@@ -157,17 +170,15 @@
         if (next && (next - cur) > 5) { v.currentTime = next - 5; virtualDist = v.currentTime; }
     }
 
-    // 编辑器
     pv.ontimeupdate = () => { if(activeScreen === 'editor') { document.getElementById('edit-time').innerText = formatTime(pv.currentTime); scrubber.value = pv.currentTime; } };
     scrubber.oninput = () => { pv.currentTime = scrubber.value; };
-    function openEditor() { activeScreen = 'editor'; switchScreen('screen-editor'); pv.currentTime = 0.1; }
+    function openEditor() { activeScreen = 'editor'; switchScreen('screen-editor'); }
     function closeEditor() { activeScreen = 'start'; switchScreen('screen-start'); pv.pause(); }
     function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
     function setMark(type) {
         const t = pv.currentTime;
         type === 'stop' ? markers.stops.push(t) : markers.departs.push(t);
         markers.stops.sort((a,b)=>a-b); markers.departs.sort((a,b)=>a-b);
-        document.getElementById('marker-log').innerText = `STOPS: ${markers.stops.length} | DEPARTS: ${markers.departs.length}`;
     }
 
     function startSimulator() {
@@ -183,7 +194,7 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // --- 核心修复：V6.6 直线动力引擎 ---
+    // --- 核心引擎 V6.7 (仪表速同步修复) ---
     function gameLoop(now) {
         const dt = (now - lastTick) / 1000;
         lastTick = now;
@@ -192,7 +203,6 @@
             if(!isDoorOpen) {
                 const cur = v.currentTime;
                 const nextStop = markers.stops.find(t => t > cur);
-                // 修复点：如果没有标记发车点，隐式认为 0 秒是发车点
                 const departList = markers.departs.length > 0 ? markers.departs : [0];
                 const lastDepart = [...departList].reverse().find(t => t <= cur);
                 
@@ -206,28 +216,29 @@
                     }
 
                     if (isSpecialZone) {
-                        // 1. 直线仪表速 (0.0 <-> 1.0)
-                        logicalV = (mode === "depart") ? (cur - lastDepart) / compWindow : (nextStop - cur) / compWindow;
-
-                        // 2. 直线倍率变换 (2.5秒)
+                        // 1. 直线倍率变换 (2.5秒)
                         let targetRate = (mode === "depart") ? (currentNotch > 0 ? currentNotch : 0) : (currentNotch < 0 ? 1.0/Math.abs(currentNotch) : 16.0);
                         let step = (5.0 / 2.5) * dt;
 
-                        if (mode === "depart" && currentNotch <= 0) {
-                            smoothedRate = Math.max(0.01, smoothedRate - 0.1 * dt); // 惩罚：降速
-                        } else if (mode === "stop" && currentNotch >= 0) {
-                            smoothedRate = Math.min(16, smoothedRate + 0.05 * dt); // 惩罚：冲站
-                        } else {
+                        if (mode === "depart" && currentNotch <= 0) smoothedRate = Math.max(0.01, smoothedRate - 0.1 * dt);
+                        else if (mode === "stop" && currentNotch >= 0) smoothedRate = Math.min(16, smoothedRate + 0.05 * dt);
+                        else {
                             if (Math.abs(smoothedRate - targetRate) < step) smoothedRate = targetRate;
                             else smoothedRate += (smoothedRate < targetRate) ? step : -step;
                         }
 
-                        // 回归常速逻辑
+                        // 5秒交接回归逻辑
                         let regTime = Math.min(5, compWindow * 0.2);
                         if (timeLeft < regTime) {
                             let ratio = timeLeft / regTime;
                             smoothedRate = (smoothedRate * ratio) + (1.0 * (1 - ratio));
                         }
+
+                        // 【修复点】仪表速同步：时速 = 实际倍率 * 线性进度
+                        // 这样倍率掉，表就掉；倍率正常，表才爬升。
+                        let progress = (mode === "depart") ? (cur - lastDepart) / compWindow : (nextStop - cur) / compWindow;
+                        logicalV = smoothedRate * progress;
+
                     } else {
                         // 巡航逻辑
                         if(currentNotch > 0) logicalV += currentNotch * 0.05 * dt;
@@ -237,17 +248,15 @@
                     }
                     virtualDist = cur;
                 } else {
-                    // 动力补偿逻辑...
+                    // 动力补偿规则略...
                     if(currentNotch > 0) logicalV += currentNotch * 0.05 * dt;
                     else if(currentNotch < 0) logicalV += currentNotch * 0.1 * dt;
                     logicalV = Math.max(0, Math.min(5.0, logicalV));
                     virtualDist += logicalV * dt;
-                    let targetRate = logicalV + ((virtualDist - cur) * (10/compWindow));
-                    smoothedRate = smoothedRate + (targetRate - smoothedRate) * 0.15;
+                    smoothedRate = logicalV + ((virtualDist - cur) * (10/compWindow));
                 }
 
-                // 执行播放 (增加 0.01 最小速度保底防止死锁)
-                if(currentNotch !== 0 || logicalV > 0) {
+                if(currentNotch !== 0 || logicalV > 0.01) {
                     v.playbackRate = Math.min(Math.max(smoothedRate, 0.0625), 16);
                     if(v.paused) v.play().catch(()=>{});
                 } else {
@@ -263,8 +272,21 @@
 
     function updateTimers() {
         const cur = v.currentTime;
-        const next = markers.stops.find(t => t > cur);
-        document.getElementById('time-to-stop').innerText = next ? (next - cur).toFixed(1) + "s" : "--:--";
+        const nextStop = markers.stops.find(t => t > cur);
+        const nextDepart = markers.departs.find(t => t > cur);
+        
+        // 1. 到站倒计时
+        document.getElementById('time-to-stop').innerText = nextStop ? (nextStop - cur).toFixed(1) + "s" : "--:--";
+        document.getElementById('hud-stop').style.display = isDoorOpen ? "none" : "flex";
+
+        // 2. 发车倒计时 (仅开门时显示)
+        const departBox = document.getElementById('hud-depart');
+        if (isDoorOpen && nextDepart) {
+            departBox.style.display = "flex";
+            document.getElementById('time-to-depart').innerText = (nextDepart - cur).toFixed(1) + "s";
+        } else {
+            departBox.style.display = "none";
+        }
     }
 
     function updateUI() {
@@ -275,7 +297,7 @@
     }
 
     function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(markers)], {type:"application/json"})); a.download = "sim.json"; a.click(); }
-    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); alert("已载入"); }; r.readAsText(e.target.files[0]); };
+    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); alert("数据载入成功"); }; r.readAsText(e.target.files[0]); };
     function formatTime(s) { const m = Math.floor(s / 60); const ss = (s % 60).toFixed(3); return (m < 10 ? "0"+m : m) + ":" + (ss < 10 ? "0"+ss : ss); }
 </script>
 </body>
