@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>VideoTrainSimulator</title>
+    <title>VideoSimulator</title>
     <style>
         :root { --accent: #00ff00; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: white; font-family: "Segoe UI", sans-serif; overflow: hidden; }
@@ -20,26 +20,25 @@
         .setting-row { margin: 15px 0; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #bbb; }
         input, select { background: #000; color: #0f0; border: 1px solid #444; padding: 6px; text-align: center; border-radius: 4px; outline: none; }
 
-        /* HUD - 实时倒计时 */
+        /* HUD */
         #bench-display { 
             position: absolute; top: 30px; left: 30px; 
             background: rgba(0,0,0,0.85); padding: 15px 25px; 
             border-radius: 4px; border: 1px solid #333; pointer-events: none;
-            display: flex; flex-direction: column; gap: 10px;
         }
         .timer-val { font-size: 36px; font-weight: bold; font-family: monospace; line-height: 1; }
-        .timer-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* 编辑器专用增强 */
-        #editor-layout { width: 95%; max-width: 1000px; display: flex; flex-direction: column; gap: 15px; }
-        #preview-video { width: 100%; background: #111; border-radius: 8px; border: 1px solid #333; max-height: 55vh; }
+        /* 编辑器增强版 UI */
+        #editor-layout { width: 95%; max-width: 1000px; display: flex; flex-direction: column; gap: 10px; }
+        .editor-top-bar { 
+            display: flex; justify-content: space-around; 
+            background: #222; padding: 15px; border-radius: 8px; 
+            border: 1px solid #444; font-size: 18px; font-weight: bold;
+        }
+        .count-tag { padding: 2px 10px; border-radius: 4px; background: #000; margin-left: 10px; }
+        #preview-video { width: 100%; background: #111; border-radius: 8px; border: 1px solid #333; max-height: 50vh; }
         #scrubber { width: 100%; cursor: pointer; height: 12px; accent-color: #0078d4; }
-        
-        /* 标记计数器样式 */
-        .marker-counter { display: flex; gap: 20px; font-weight: bold; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .count-stop { color: #f44; }
-        .count-depart { color: #0af; }
-        .marker-log { background: #0a0a0a; height: 80px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border: 1px solid #222; color: #666; text-align: left; }
+        .marker-log { background: #0a0a0a; height: 60px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; border: 1px solid #222; color: #555; }
 
         /* 游戏视图 */
         #game-container { position: relative; width: 100vw; height: 100vh; }
@@ -47,14 +46,13 @@
         #hud { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.9); padding: 25px; border-left: 6px solid var(--accent); min-width: 260px; text-align: right; }
         .notch-val { font-size: 72px; font-weight: 900; font-family: 'Courier New', monospace; color: var(--accent); line-height: 0.8; }
         #speed-txt { font-size: 26px; font-weight: bold; margin-top: 5px; }
-        .rate-info { font-size: 13px; color: #444; margin-top: 6px; font-family: monospace; }
     </style>
 </head>
 <body>
 
     <div id="screen-start" class="screen active">
         <div class="config-card">
-            <h2 style="letter-spacing:2px; margin-bottom:10px;">VideoTrainSimulator</h2>
+            <h2 style="letter-spacing:2px; margin-bottom:10px;">VideoSimulator</h2>
             <div id="upload-box">
                 <input type="file" id="video-input" accept="video/*" style="display:none;">
                 <button type="button" class="btn btn-primary" onclick="document.getElementById('video-input').click()">选择视频文件</button>
@@ -84,24 +82,25 @@
 
     <div id="screen-editor" class="screen">
         <div id="editor-layout">
-            <div class="marker-counter">
-                <div class="count-stop">停车点计数：<span id="cnt-stop">0</span></div>
-                <div class="count-depart">发车点计数：<span id="cnt-depart">0</span></div>
+            <div class="editor-top-bar">
+                <div style="color:#f44;">停车点 <span id="cnt-stop" class="count-tag">0</span></div>
+                <div style="color:#0af;">发车点 <span id="cnt-depart" class="count-tag">0</span></div>
             </div>
             <video id="preview-video" preload="auto" playsinline muted></video>
             <input type="range" id="scrubber" value="0" step="0.001">
             <div style="display:flex; justify-content: space-between; align-items: center;">
-                <div id="edit-time" style="font-size:36px; font-family:monospace; color:#0af;">00:00.000</div>
+                <div id="edit-time" style="font-size:32px; font-family:monospace; color:#0af;">00:00.000</div>
                 <div>
-                    <button class="btn btn-primary" style="background:#f44;" onclick="setMark('stop')">标记停车点</button>
-                    <button class="btn btn-primary" style="background:#0af;" onclick="setMark('depart')">标记发车点</button>
+                    <button class="btn btn-primary" style="background:#f44; padding:8px 15px;" onclick="setMark('stop')">标记停车</button>
+                    <button class="btn btn-primary" style="background:#0af; padding:8px 15px;" onclick="setMark('depart')">标记发车</button>
+                    <button class="btn btn-outline" style="padding:8px 15px;" onclick="undoLastMark()">撤销</button>
                 </div>
             </div>
-            <div class="marker-log" id="marker-log">等待打点数据...</div>
+            <div class="marker-log" id="marker-log">请使用空格播放视频进行标记</div>
             <div style="text-align:center;">
-                <button class="btn btn-success" onclick="closeEditor()">保存并返回</button>
+                <button class="btn btn-success" onclick="closeEditor()">完成并返回</button>
                 <button class="btn btn-outline" onclick="exportJSON()">导出 JSON</button>
-                <button class="btn btn-outline" onclick="document.getElementById('import-json').click()">导入 JSON</button>
+                <button class="btn btn-outline" onclick="document.getElementById('import-json').click()">导入</button>
                 <input type="file" id="import-json" accept=".json" style="display:none;">
             </div>
         </div>
@@ -129,6 +128,7 @@
 
 <script>
     let markers = { stops: [], departs: [] };
+    let lastMarkedType = null; // 用于撤销
     let currentNotch = 0, logicalV = 0, virtualDist = 0, isDoorOpen = false, activeScreen = 'start';
     let lastTick = performance.now(), compWindow = 40, maxLineSpeed = 80, selectedRule = 'reality';
     let smoothedRate = 0;
@@ -143,10 +143,7 @@
         const url = URL.createObjectURL(file);
         v.src = url; pv.src = url;
         v.load(); pv.load();
-        v.onloadedmetadata = () => {
-            document.getElementById('file-ready').style.display = 'block';
-            scrubber.max = v.duration;
-        };
+        v.onloadedmetadata = () => document.getElementById('file-ready').style.display = 'block';
     };
 
     window.addEventListener('keydown', e => {
@@ -165,22 +162,7 @@
         }
     });
 
-    function toggleDoor() {
-        if(logicalV < 0.05) {
-            isDoorOpen = !isDoorOpen;
-            if(isDoorOpen) { currentNotch = 0; v.playbackRate = 1.0; v.play(); v.muted = false; }
-            else { v.pause(); logicalV = 0; virtualDist = v.currentTime; }
-            updateUI();
-        }
-    }
-
-    function handleSkip() {
-        const cur = v.currentTime;
-        const next = markers.departs.find(t => t > cur);
-        if (next && (next - cur) > 5) { v.currentTime = next - 5; virtualDist = v.currentTime; }
-    }
-
-    // 编辑器核心逻辑
+    // 编辑器逻辑
     pv.ontimeupdate = () => { 
         if(activeScreen === 'editor') { 
             document.getElementById('edit-time').innerText = formatTime(pv.currentTime); 
@@ -188,30 +170,35 @@
         } 
     };
     scrubber.oninput = () => { pv.currentTime = scrubber.value; };
-    
+
     function openEditor() { 
         activeScreen = 'editor'; 
         switchScreen('screen-editor'); 
         pv.currentTime = 0.1; 
-        updateMarkerLog(); // 确保打开时更新一次计数
+        updateMarkerUI(); 
     }
-    
-    function closeEditor() { activeScreen = 'start'; switchScreen('screen-start'); pv.pause(); }
-    function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 
     function setMark(type) {
         const t = pv.currentTime;
         type === 'stop' ? markers.stops.push(t) : markers.departs.push(t);
         markers.stops.sort((a,b)=>a-b); markers.departs.sort((a,b)=>a-b);
-        updateMarkerLog();
+        lastMarkedType = type;
+        updateMarkerUI();
     }
 
-    function updateMarkerLog() {
+    function undoLastMark() {
+        if (!lastMarkedType) return;
+        if (lastMarkedType === 'stop') markers.stops.pop();
+        else markers.departs.pop();
+        lastMarkedType = null;
+        updateMarkerUI();
+    }
+
+    function updateMarkerUI() {
         document.getElementById('cnt-stop').innerText = markers.stops.length;
         document.getElementById('cnt-depart').innerText = markers.departs.length;
         document.getElementById('marker-log').innerHTML = 
-            `STOPS: ${markers.stops.map(t=>t.toFixed(1)).join(", ") || "None"}<br>` +
-            `DEPARTS: ${markers.departs.map(t=>t.toFixed(1)).join(", ") || "None"}`;
+            `STOPS: [${markers.stops.map(t=>t.toFixed(1)).join(", ")}] | DEPARTS: [${markers.departs.map(t=>t.toFixed(1)).join(", ")}]`;
     }
 
     function startSimulator() {
@@ -227,7 +214,22 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // --- 核心双模引擎 V6.8 ---
+    function toggleDoor() {
+        if(logicalV < 0.05) {
+            isDoorOpen = !isDoorOpen;
+            if(isDoorOpen) { currentNotch = 0; v.playbackRate = 1.0; v.play(); v.muted = false; }
+            else { v.pause(); logicalV = 0; virtualDist = v.currentTime; }
+            updateUI();
+        }
+    }
+
+    function handleSkip() {
+        const cur = v.currentTime;
+        const next = markers.departs.find(t => t > cur);
+        if (next && (next - cur) > 5) { v.currentTime = next - 5; virtualDist = v.currentTime; }
+    }
+
+    // --- 核心引擎 V6.9 ---
     function gameLoop(now) {
         const dt = (now - lastTick) / 1000;
         lastTick = now;
@@ -283,32 +285,26 @@
                 if(currentNotch !== 0 || logicalV > 0.01) {
                     v.playbackRate = Math.min(Math.max(smoothedRate, 0.0625), 16);
                     if(v.paused) v.play().catch(()=>{});
-                } else {
-                    v.pause(); virtualDist = v.currentTime; smoothedRate = 0;
-                }
+                } else { v.pause(); virtualDist = v.currentTime; smoothedRate = 0; }
             }
             document.getElementById('speed-txt').innerText = (logicalV * maxLineSpeed).toFixed(1) + " km/h";
             document.getElementById('rate-display').innerText = v.paused ? "0.00x" : v.playbackRate.toFixed(2) + "x";
-            updateHUDTimers();
+            updateHUD();
         }
         requestAnimationFrame(gameLoop);
     }
 
-    function updateHUDTimers() {
+    function updateHUD() {
         const cur = v.currentTime;
         const nextStop = markers.stops.find(t => t > cur);
         const nextDepart = markers.departs.find(t => t > cur);
-        
         document.getElementById('time-to-stop').innerText = nextStop ? (nextStop - cur).toFixed(1) + "s" : "--:--";
         document.getElementById('hud-stop').style.display = isDoorOpen ? "none" : "flex";
-
         const departBox = document.getElementById('hud-depart');
         if (isDoorOpen && nextDepart) {
             departBox.style.display = "flex";
             document.getElementById('time-to-depart').innerText = (nextDepart - cur).toFixed(1) + "s";
-        } else {
-            departBox.style.display = "none";
-        }
+        } else { departBox.style.display = "none"; }
     }
 
     function updateUI() {
@@ -318,8 +314,10 @@
         nt.style.color = isDoorOpen ? "#ffc107" : (currentNotch > 0 ? "#0af" : (currentNotch < 0 ? "#f44" : "#0f0"));
     }
 
+    function closeEditor() { activeScreen = 'start'; switchScreen('screen-start'); pv.pause(); }
+    function switchScreen(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
     function exportJSON() { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(markers)], {type:"application/json"})); a.download = "sim.json"; a.click(); }
-    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); updateMarkerLog(); alert("数据载入成功"); }; r.readAsText(e.target.files[0]); };
+    document.getElementById('import-json').onchange = e => { const r = new FileReader(); r.onload = ev => { markers = JSON.parse(ev.target.result); updateMarkerUI(); alert("载入成功"); }; r.readAsText(e.target.files[0]); };
     function formatTime(s) { const m = Math.floor(s / 60); const ss = (s % 60).toFixed(3); return (m < 10 ? "0"+m : m) + ":" + (ss < 10 ? "0"+ss : ss); }
 </script>
 </body>
